@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EastBot</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f9f9f9;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            max-width: 400px;
+            margin: 50px auto;
+            height: 600px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: red;
+            color: white;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .chat-body {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chat-input {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            gap: 10px;
+        }
+
+        .chat-input textarea {
+            flex-grow: 1;
+            resize: none;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        .chat-input button {
+            background: red;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .chat-input .mic-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: red;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .chat-bubble {
+            max-width: 70%;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .chat-bubble.user {
+            align-self: flex-end;
+            background: red;
+            color: white;
+            border-bottom-right-radius: 0;
+        }
+
+        .chat-bubble.bot {
+            align-self: flex-start;
+            background: #f1f0f0;
+            color: #333;
+            border-bottom-left-radius: 0;
+        }
+
+        .powered-by {
+            font-size: 12px;
+            text-align: center;
+            color: #888;
+            padding: 10px;
+            background: #f1f1f1;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            University GPT
+        </div>
+        <div class="chat-body" id="chat-body">
+            <!-- Messages will appear here dynamically -->
+        </div>
+        <div class="chat-input">
+            <textarea id="user-input" rows="1" placeholder="Type your message..."></textarea>
+            <button id="send-btn">Send</button>
+            <button class="mic-btn" id="mic-btn">🎤</button>
+        </div>
+    </div>
+    <div class="powered-by">
+        Designed by Group-3
+    </div>
+
+    <script>
+       const chatBody = document.getElementById('chat-body');
+const userInput = document.getElementById('user-input');
+const sendBtn = document.getElementById('send-btn');
+const micBtn = document.getElementById('mic-btn');
+
+// Function to append message to the chat
+function appendMessage(text, sender = 'bot') {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${sender}`;
+    bubble.textContent = text;
+    chatBody.appendChild(bubble);
+    chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+// Function to convert text to speech
+function speakText(text) {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'en-US';  // Language of the speech
+    utterance.rate = 1;        // Normal speed
+    utterance.pitch = 1;       // Normal pitch
+    window.speechSynthesis.speak(utterance);  // Speak the text
+}
+
+// Function to send a message
+async function sendMessage() {
+    const query = userInput.value.trim();
+    if (!query) return;
+
+    appendMessage(query, 'user');
+    userInput.value = '';
+
+    try {
+        const response = await fetch('/ask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query }),
+        });
+
+        const data = await response.json();
+        appendMessage(data.result, 'bot');
+        
+        // Speak the bot's response
+        speakText(data.result);  // Speak out the response text
+
+        if (data.source_documents && data.source_documents.length > 0) {
+            const sources = data.source_documents.join('\n');
+            appendMessage(`Sources:\n${sources}`, 'bot');
+            speakText(`Sources:\n${sources}`);  // Optionally, speak the sources
+        }
+    } catch (error) {
+        appendMessage('Sorry, something went wrong. Please try again.', 'bot');
+        speakText('Sorry, something went wrong. Please try again.');  // Speak the error message
+    }
+}
+
+// Event listener for the send button
+sendBtn.addEventListener('click', sendMessage);
+
+// Event listener for the Enter key
+userInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+// Voice recognition logic
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognition = new SpeechRecognition();
+
+recognition.continuous = false;
+recognition.interimResults = false;
+recognition.lang = 'en-US';
+
+// When the mic button is clicked, start voice recognition
+micBtn.addEventListener('click', () => {
+    recognition.start();
+});
+
+// Feedback when recognition starts and ends
+recognition.onstart = () => {
+    micBtn.style.color = 'green';
+};
+
+recognition.onend = () => {
+    micBtn.style.color = 'red';
+};
+
+// When the speech is recognized, set the text and send the message
+recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    userInput.value = transcript;
+    sendMessage();
+};
+
+// Error handling for speech recognition
+recognition.onerror = (event) => {
+    console.error('Recognition error:', event.error);
+    appendMessage('Sorry, I could not understand you. Please try again.', 'bot');
+    speakText('Sorry, I could not understand you. Please try again.');
+};
+
+    </script>
+</body>
+</html>
